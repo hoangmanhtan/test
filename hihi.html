@@ -1,0 +1,94 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>File Processing</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.4/xlsx.full.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/FileSaver.js/2.0.5/FileSaver.min.js"></script>
+</head>
+<body>
+    <h1>Upload and Process Excel File</h1>
+    <input type="file" id="excelFileInput">
+    <button onclick="processExcel()">Process</button>
+    <script>
+        function processExcel() {
+    const inputFile = document.getElementById('excelFileInput').files[0];
+    const reader = new FileReader();
+
+    reader.onload = function(event) {
+        const data = new Uint8Array(event.target.result);
+        const workbook = XLSX.read(data, { type: 'array' });
+
+        const workbookOutput = XLSX.utils.book_new();
+
+        workbook.SheetNames.forEach(function(sheetName) {
+            const sheet = workbook.Sheets[sheetName];
+            const sheetOutput = XLSX.utils.book_new();
+
+            const rows = XLSX.utils.sheet_to_json(sheet, { header: 1 });
+
+            const title = ["Mã trường hợp kiểm thử", "Mục đích kiểm thử", "Các bước thực hiện",
+                "Kết quả mong muốn", "Tiền điều kiện", "Đường dẫn"];
+
+            const firstRow = [];
+            title.forEach(function(value) {
+                firstRow.push({ v: value });
+            });
+
+            const sheetRows = [firstRow];
+
+            let pre = "";
+            let numberFunc = "";
+            let value = "";
+            const functionMap = {};
+
+            rows.forEach(function(row, rowIndex) {
+                if (rowIndex > 0) {
+                    const newRow = [];
+                    if (row[1] && row[1] !== "Mục đích kiểm thử") {
+                        if (row[0] && row[0] !== "Mã trường hợp kiểm thử") {
+                            newRow.push({ v: "" }); // Empty cell for "Môi trường"
+                            for (let j = 1; j <= 5; j++) {
+                                if (j <= 3) {
+                                    newRow.push({ v: row[j] });
+                                } else if (j === 4) {
+                                    newRow.push({ v: pre });
+                                } else if (functionMap[numberFunc]) {
+                                    newRow.push({ v: functionMap[numberFunc] });
+                                }
+                            }
+                            sheetRows.push(newRow);
+                        } else if (row[1].toLowerCase().includes("pre")) {
+                            pre = row[1];
+                        } else {
+                            numberFunc = row[1].split(" ")[0];
+                            value = row[1].replace(numberFunc, "").trim();
+                            if (numberFunc.includes(".")) {
+                                const valueAddMap = functionMap[numberFunc.substring(0, numberFunc.lastIndexOf("."))] + "/" + value;
+                                console.log("valueAddMap: " + valueAddMap);
+                                functionMap[numberFunc] = valueAddMap;
+                            } else {
+                                value = "/" + value;
+                                functionMap[numberFunc] = value;
+                            }
+                        }
+                    }
+                }
+            });
+
+            const newSheet = XLSX.utils.aoa_to_sheet(sheetRows);
+            XLSX.utils.book_append_sheet(workbookOutput, newSheet, sheetName);
+        });
+
+        const wbout = XLSX.write(workbookOutput, { bookType: 'xlsx', type: 'array' });
+
+        saveAs(new Blob([wbout], { type: 'application/octet-stream' }), 'output.xlsx');
+    };
+
+    reader.readAsArrayBuffer(inputFile);
+}
+
+    </script>
+</body>
+</html>
